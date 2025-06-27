@@ -1,32 +1,60 @@
+version: '3.8'
+
 services:
   postgres:
     image: postgres:15-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: internal_transfers
-      POSTGRES_USER: user
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d internal_transfers"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
       timeout: 5s
       retries: 5
 
-  # app:
-  #   build: .
-  #   ports:
-  #     - "8080:8080"
+  # liquibase:
+  #   image: liquibase/liquibase:4.20
   #   depends_on:
   #     postgres:
   #       condition: service_healthy
+  #   volumes:
+  #     - ./db/liquibase:/liquibase/changelog
   #   environment:
-  #     DATABASE_URL: postgres://user:password@postgres:5432/internal_transfers?sslmode=disable
+  #     LIQUIBASE_COMMAND_URL: jdbc:postgresql://postgres:5432/internal_transfers
+  #     LIQUIBASE_COMMAND_USERNAME: postgres
+  #     LIQUIBASE_COMMAND_PASSWORD: password
+  #     LIQUIBASE_COMMAND_CHANGELOG_FILE: changelog-master.xml
+  #   command: liquibase update
+  #   restart: "no"
+
+  # app:
+  #   build: .
+  #   restart: unless-stopped
+  #   depends_on:
+  #     liquibase:
+  #       condition: service_completed_successfully
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     DB_HOST: postgres
+  #     DB_PORT: 5432
+  #     DB_USER: postgres
+  #     DB_PASSWORD: password
+  #     DB_NAME: internal_transfers
+  #     DB_SSLMODE: disable
+  #     GIN_MODE: release
   #     PORT: 8080
-  #   restart: on-failure
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
 volumes:
   postgres_data:

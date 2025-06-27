@@ -4,7 +4,10 @@
       "Bash(go mod:*)",
       "Bash(docker-compose:*)",
       "Bash(docker-compose up:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Bash(mv:*)",
+      "Bash(go build:*)"
     ],
     "deny": []
   }

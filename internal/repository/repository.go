@@ -1,268 +1,255 @@
 package repository
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
-	"internal-transfers/internal/models"
-	"time"
 
-	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
+
+	"internal-transfers/internal/models/account"
+	"internal-transfers/internal/models/transaction"
 )
 
-var (
-	ErrAccountNotFound     = errors.New("account not found")
-	ErrAccountAlreadyExists = errors.New("account already exists")
-	ErrInsufficientBalance = errors.New("insufficient balance")
-	ErrInvalidAmount       = errors.New("invalid amount")
-)
-
+// Repository implements repository operations using GORM
 type Repository struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
-func NewRepository(db *sql.DB) *Repository {
+// NewRepository creates a new Repository instance
+func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{db: db}
 }
 
-func (r *Repository) GetAccountByID(accountID int) (*models.Account, error) {
-	query := `SELECT id, account_id, balance, created_at, updated_at 
-			  FROM accounts WHERE account_id = $1`
+// CreateAccount creates a new account with the given account ID and initial balance
+func (r *Repository) CreateAccount(accountID int, initialBalance decimal.Decimal) error {
+	acc := account.Account{
+		AccountID: accountID,
+		Balance:   initialBalance,
+	}
 	
-	var account models.Account
-	var balanceStr string
-	
-	err := r.db.QueryRow(query, accountID).Scan(
-		&account.ID,
-		&account.AccountID,
-		&balanceStr,
-		&account.CreatedAt,
-		&account.UpdatedAt,
-	)
-	
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrAccountNotFound
+	result := r.db.Create(&acc)
+	if result.Error != nil {
+		// Check for unique constraint violation
+		if isDuplicateError(result.Error) {
+			return fmt.Errorf("account already exists")
 		}
-		return nil, fmt.Errorf("failed to query account: %w", err)
-	}
-	
-	balance, err := decimal.NewFromString(balanceStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse balance: %w", err)
-	}
-	account.Balance = balance
-	
-	return &account, nil
-}
-
-func (r *Repository) CreateAccount(accountID int, initialBalance decimal.Decimal) (*models.Account, error) {
-	if initialBalance.IsNegative() {
-		return nil, ErrInvalidAmount
-	}
-
-	query := `INSERT INTO accounts (account_id, balance) 
-			  VALUES ($1, $2) 
-			  RETURNING id, account_id, balance, created_at, updated_at`
-	
-	var account models.Account
-	var balanceStr string
-	
-	err := r.db.QueryRow(query, accountID, initialBalance.String()).Scan(
-		&account.ID,
-		&account.AccountID,
-		&balanceStr,
-		&account.CreatedAt,
-		&account.UpdatedAt,
-	)
-	
-	if err != nil {
-		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
-			return nil, ErrAccountAlreadyExists
-		}
-		return nil, fmt.Errorf("failed to create account: %w", err)
-	}
-	
-	balance, err := decimal.NewFromString(balanceStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse balance: %w", err)
-	}
-	account.Balance = balance
-	
-	return &account, nil
-}
-
-func (r *Repository) UpdateAccountBalance(accountID int, newBalance decimal.Decimal) error {
-	query := `UPDATE accounts SET balance = $1, updated_at = $2 WHERE id = $3`
-	result, err := r.db.Exec(query, newBalance.String(), time.Now(), accountID)
-	if err != nil {
-		return fmt.Errorf("failed to update account balance: %w", err)
-	}
-	
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
-	}
-	
-	if rowsAffected == 0 {
-		return ErrAccountNotFound
+		return fmt.Errorf("failed to create account: %w", result.Error)
 	}
 	
 	return nil
 }
 
-func (r *Repository) CreateTransaction(tx *sql.Tx, fromAccountID, toAccountID *int, amount decimal.Decimal, description string) (*models.Transaction, error) {
-	query := `INSERT INTO transactions (from_account_id, to_account_id, amount, description, status) 
-			  VALUES ($1, $2, $3, $4, 'completed') 
-			  RETURNING id, from_account_id, to_account_id, amount, description, status, created_at, updated_at`
+// GetAccountByID retrieves account information by account ID
+func (r *Repository) GetAccountByID(accountID int) (*account.Account, error) {
+	var acc account.Account
 	
-	var transaction models.Transaction
-	var amountStr string
-	
-	err := tx.QueryRow(query, fromAccountID, toAccountID, amount.String(), description).Scan(
-		&transaction.ID,
-		&transaction.FromAccountID,
-		&transaction.ToAccountID,
-		&amountStr,
-		&transaction.Description,
-		&transaction.Status,
-		&transaction.CreatedAt,
-		&transaction.UpdatedAt,
-	)
-	
-	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction: %w", err)
+	result := r.db.Where("account_id = ?", accountID).First(&acc)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("account not found")
+		}
+		return nil, fmt.Errorf("failed to get account: %w", result.Error)
 	}
 	
-	parsedAmount, err := decimal.NewFromString(amountStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse transaction amount: %w", err)
-	}
-	transaction.Amount = parsedAmount
-	
-	return &transaction, nil
+	return &acc, nil
 }
 
-// ProcessTransaction handles money transfer between accounts using account IDs
-// This method ensures atomicity and data consistency during the transfer process
-func (r *Repository) ProcessTransaction(sourceAccountID, destinationAccountID int, amount decimal.Decimal) (*models.Transaction, error) {
-	// Validate input parameters
-	if amount.IsNegative() || amount.IsZero() {
-		return nil, ErrInvalidAmount
+// ProcessTransaction processes a financial transfer between two accounts with strict database-level locking,
+// rollback and commit transaction management for financial system integrity
+func (r *Repository) ProcessTransaction(sourceAccountID, destinationAccountID int, amount decimal.Decimal) (*transaction.Transaction, error) {
+	var trans transaction.Transaction
+	var sourceAccount, destinationAccount account.Account
+	
+	// Validate pre-conditions before starting transaction
+	if amount.LessThanOrEqual(decimal.Zero) {
+		return nil, fmt.Errorf("transfer amount must be positive")
 	}
 	
 	if sourceAccountID == destinationAccountID {
 		return nil, fmt.Errorf("source and destination accounts cannot be the same")
 	}
 	
-	if sourceAccountID <= 0 || destinationAccountID <= 0 {
-		return nil, fmt.Errorf("invalid account ID")
-	}
-
-	// Begin database transaction for atomicity
-	tx, err := r.db.Begin()
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	// Get source account and validate it exists
-	sourceAccount, err := r.GetAccountByID(sourceAccountID)
-	if err != nil {
-		return nil, fmt.Errorf("source account error: %w", err)
-	}
-
-	// Get destination account and validate it exists
-	destinationAccount, err := r.GetAccountByID(destinationAccountID)
-	if err != nil {
-		return nil, fmt.Errorf("destination account error: %w", err)
-	}
-
-	// Check sufficient balance
-	if sourceAccount.Balance.LessThan(amount) {
-		return nil, ErrInsufficientBalance
-	}
-
-	// Update account balances atomically
-	updateQuery := `UPDATE accounts SET balance = $1, updated_at = $2 WHERE id = $3`
+	// Start database transaction with explicit isolation level
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		// Set transaction isolation level to SERIALIZABLE for maximum consistency
+		if err := tx.Exec("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").Error; err != nil {
+			return fmt.Errorf("failed to set transaction isolation level: %w", err)
+		}
+		
+		// Step 1: Lock accounts in order to prevent deadlocks
+		// Order accounts by ID to prevent deadlocks when multiple transactions occur
+		var firstAccountID, secondAccountID int
+		
+		if sourceAccountID < destinationAccountID {
+			firstAccountID, secondAccountID = sourceAccountID, destinationAccountID
+		} else {
+			firstAccountID, secondAccountID = destinationAccountID, sourceAccountID
+		}
+		
+		// Lock first account (lower ID)
+		var firstAcc account.Account
+		result := tx.Set("gorm:query_option", "FOR UPDATE NOWAIT").Where("account_id = ?", firstAccountID).First(&firstAcc)
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("account %d not found", firstAccountID)
+			}
+			return fmt.Errorf("failed to lock account %d: %w", firstAccountID, result.Error)
+		}
+		
+		// Lock second account (higher ID)
+		var secondAcc account.Account
+		result = tx.Set("gorm:query_option", "FOR UPDATE NOWAIT").Where("account_id = ?", secondAccountID).First(&secondAcc)
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("account %d not found", secondAccountID)
+			}
+			return fmt.Errorf("failed to lock account %d: %w", secondAccountID, result.Error)
+		}
+		
+		// Assign accounts to source and destination based on original request
+		if sourceAccountID == firstAccountID {
+			sourceAccount, destinationAccount = firstAcc, secondAcc
+		} else {
+			sourceAccount, destinationAccount = secondAcc, firstAcc
+		}
+		
+		// Step 2: Verify accounts are active (not soft deleted)
+		if sourceAccount.DeletedAt.Valid {
+			return fmt.Errorf("source account %d is inactive", sourceAccountID)
+		}
+		if destinationAccount.DeletedAt.Valid {
+			return fmt.Errorf("destination account %d is inactive", destinationAccountID)
+		}
+		
+		// Step 3: Check sufficient balance with precision
+		if sourceAccount.Balance.LessThan(amount) {
+			return fmt.Errorf("insufficient balance: available %.5f, requested %.5f", 
+				sourceAccount.Balance, amount)
+		}
+		
+		// Step 4: Calculate new balances with high precision
+		newSourceBalance := sourceAccount.Balance.Sub(amount)
+		newDestinationBalance := destinationAccount.Balance.Add(amount)
+		
+		// Verify balances don't go negative (additional safety check)
+		if newSourceBalance.LessThan(decimal.Zero) {
+			return fmt.Errorf("transaction would result in negative balance")
+		}
+		
+		// Step 5: Create pending transaction record first for audit trail
+		trans = transaction.Transaction{
+			FromAccountID: &sourceAccount.ID,
+			ToAccountID:   &destinationAccount.ID,
+			Amount:        amount,
+			Description:   fmt.Sprintf("Transfer from account %d to account %d", sourceAccountID, destinationAccountID),
+			Status:        transaction.StatusPending,
+		}
+		
+		result = tx.Create(&trans)
+		if result.Error != nil {
+			return fmt.Errorf("failed to create transaction record: %w", result.Error)
+		}
+		
+		// Step 6: Update source account balance
+		result = tx.Model(&sourceAccount).Where("id = ? AND balance >= ?", sourceAccount.ID, amount).
+			Update("balance", newSourceBalance)
+		if result.Error != nil {
+			return fmt.Errorf("failed to update source account balance: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("failed to update source account: insufficient balance or account changed")
+		}
+		
+		// Step 7: Update destination account balance
+		result = tx.Model(&destinationAccount).Where("id = ?", destinationAccount.ID).
+			Update("balance", newDestinationBalance)
+		if result.Error != nil {
+			return fmt.Errorf("failed to update destination account balance: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("failed to update destination account: account may have been modified")
+		}
+		
+		// Step 8: Update transaction status to completed
+		result = tx.Model(&trans).Update("status", transaction.StatusCompleted)
+		if result.Error != nil {
+			return fmt.Errorf("failed to update transaction status: %w", result.Error)
+		}
+		
+		// Step 9: Final verification - re-read balances to ensure consistency
+		var verifySource, verifyDestination account.Account
+		if err := tx.Where("id = ?", sourceAccount.ID).First(&verifySource).Error; err != nil {
+			return fmt.Errorf("failed to verify source account balance: %w", err)
+		}
+		if err := tx.Where("id = ?", destinationAccount.ID).First(&verifyDestination).Error; err != nil {
+			return fmt.Errorf("failed to verify destination account balance: %w", err)
+		}
+		
+		// Verify the balances match our calculations
+		if !verifySource.Balance.Equal(newSourceBalance) {
+			return fmt.Errorf("source balance verification failed: expected %.5f, got %.5f", 
+				newSourceBalance, verifySource.Balance)
+		}
+		if !verifyDestination.Balance.Equal(newDestinationBalance) {
+			return fmt.Errorf("destination balance verification failed: expected %.5f, got %.5f", 
+				newDestinationBalance, verifyDestination.Balance)
+		}
+		
+		// All steps completed successfully - transaction will be committed automatically
+		return nil
+	})
 	
-	newSourceBalance := sourceAccount.Balance.Sub(amount)
-	_, err = tx.Exec(updateQuery, newSourceBalance.String(), time.Now(), sourceAccount.ID)
+	// If any error occurred, transaction is automatically rolled back by GORM
 	if err != nil {
-		return nil, fmt.Errorf("failed to update source account: %w", err)
+		// Log the error for audit purposes (in a real system, you'd use proper logging)
+		return nil, fmt.Errorf("transaction failed and rolled back: %w", err)
 	}
-
-	newDestinationBalance := destinationAccount.Balance.Add(amount)
-	_, err = tx.Exec(updateQuery, newDestinationBalance.String(), time.Now(), destinationAccount.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update destination account: %w", err)
-	}
-
-	// Create transaction record
-	description := fmt.Sprintf("Transfer from account %d to account %d", sourceAccountID, destinationAccountID)
-	transaction, err := r.CreateTransaction(tx, &sourceAccount.ID, &destinationAccount.ID, amount, description)
-	if err != nil {
-		return nil, err
-	}
-
-	// Commit the transaction
-	err = tx.Commit()
-	if err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return transaction, nil
+	
+	// Transaction completed successfully and committed
+	return &trans, nil
 }
 
-func (r *Repository) ProcessTransfer(fromAccountID, toAccountID int, amount decimal.Decimal, description string) (*models.Transaction, error) {
-	if amount.IsNegative() || amount.IsZero() {
-		return nil, ErrInvalidAmount
-	}
-
-	tx, err := r.db.Begin()
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	fromAccount, err := r.GetAccountByID(fromAccountID)
-	if err != nil {
-		return nil, fmt.Errorf("source account error: %w", err)
-	}
-
-	toAccount, err := r.GetAccountByID(toAccountID)
-	if err != nil {
-		return nil, fmt.Errorf("destination account error: %w", err)
-	}
-
-	if fromAccount.Balance.LessThan(amount) {
-		return nil, ErrInsufficientBalance
-	}
-
-	updateQuery := `UPDATE accounts SET balance = $1, updated_at = $2 WHERE id = $3`
+// GetTransactionByID retrieves a transaction by its ID
+func (r *Repository) GetTransactionByID(transactionID uint) (*transaction.Transaction, error) {
+	var trans transaction.Transaction
 	
-	newFromBalance := fromAccount.Balance.Sub(amount)
-	_, err = tx.Exec(updateQuery, newFromBalance.String(), time.Now(), fromAccount.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update source account: %w", err)
+	result := r.db.First(&trans, transactionID)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("transaction not found")
+		}
+		return nil, fmt.Errorf("failed to get transaction: %w", result.Error)
 	}
+	
+	return &trans, nil
+}
 
-	newToBalance := toAccount.Balance.Add(amount)
-	_, err = tx.Exec(updateQuery, newToBalance.String(), time.Now(), toAccount.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update destination account: %w", err)
+// isDuplicateError checks if the error is a unique constraint violation
+func isDuplicateError(err error) bool {
+	// This is a simplified check. In a real application, you'd want to check
+	// for specific PostgreSQL error codes (23505 for unique_violation)
+	return err != nil && (
+		containsString(err.Error(), "duplicate") ||
+		containsString(err.Error(), "unique") ||
+		containsString(err.Error(), "23505"))
+}
+
+// containsString checks if a string contains a substring (case-insensitive)
+func containsString(str, substr string) bool {
+	return len(str) >= len(substr) && 
+		   (str == substr || 
+		    (len(str) > len(substr) && 
+		     (str[:len(substr)] == substr || 
+		      str[len(str)-len(substr):] == substr ||
+		      containsSubstring(str, substr))))
+}
+
+func containsSubstring(str, substr string) bool {
+	for i := 0; i <= len(str)-len(substr); i++ {
+		if str[i:i+len(substr)] == substr {
+			return true
+		}
 	}
-
-	transaction, err := r.CreateTransaction(tx, &fromAccount.ID, &toAccount.ID, amount, description)
-	if err != nil {
-		return nil, err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return transaction, nil
+	return false
 }

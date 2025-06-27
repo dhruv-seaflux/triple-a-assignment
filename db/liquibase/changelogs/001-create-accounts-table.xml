@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="001-create-accounts-table" author="internal-transfers">
+        <comment>Create accounts table for storing account information</comment>
+        
+        <createTable tableName="accounts">
+            <column name="id" type="BIGSERIAL">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="account_id" type="INTEGER">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="balance" type="DECIMAL(15,5)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
+        </createTable>
+
+        <addDefaultValue 
+            tableName="accounts" 
+            columnName="balance" 
+            defaultValue="0.00000"/>
+
+        <addDefaultValue 
+            tableName="accounts" 
+            columnName="created_at" 
+            defaultValueComputed="CURRENT_TIMESTAMP"/>
+
+        <addDefaultValue 
+            tableName="accounts" 
+            columnName="updated_at" 
+            defaultValueComputed="CURRENT_TIMESTAMP"/>
+
+        <rollback>
+            <dropTable tableName="accounts"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

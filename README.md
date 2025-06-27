@@ -1,15 +1,18 @@
 # Internal Transfers Application
 
-A Go-based HTTP API for internal financial transfers between accounts with PostgreSQL backend, featuring comprehensive testing, CI/CD integration, and production-ready architecture.
+A modern Go-based HTTP API for internal financial transfers between accounts with PostgreSQL backend, built with Gin web framework, GORM ORM, Liquibase migrations, and production-ready architecture.
 
 ## 🚀 Features
 
 - **Account Management**: Create accounts with initial balances using integer account IDs
 - **Balance Queries**: Query account balances with precise decimal formatting
-- **Financial Transactions**: Process transfers between accounts with atomic operations
+- **Financial Transactions**: Process transfers between accounts with atomic GORM transactions
 - **Transaction Logging**: Complete audit trail with transaction history
-- **Data Integrity**: Atomic transactions with automatic rollback on failure
+- **Data Integrity**: GORM database transactions with automatic rollback on failure
 - **Decimal Precision**: High-precision financial calculations (15 digits, 5 decimal places)
+- **Modern Architecture**: Built with Gin web framework and GORM ORM
+- **Database Migrations**: Liquibase for version-controlled schema management
+- **Standardized API**: Consistent JSON responses with proper HTTP status codes
 - **Comprehensive Testing**: Unit, integration, and performance tests with 85%+ coverage
 - **CI/CD Pipeline**: Automated testing, building, and deployment workflows
 - **Docker Support**: Containerized development and deployment environment
@@ -37,8 +40,9 @@ A Go-based HTTP API for internal financial transfers between accounts with Postg
    ```
    
    This automatically:
-   - 🐘 Starts PostgreSQL database with schema
-   - 🏗️ Builds the Go application
+   - 🐘 Starts PostgreSQL database
+   - 📊 Runs Liquibase database migrations
+   - 🏗️ Builds the Go application with Gin & GORM
    - 🌐 Exposes API on port 8080
    - 📊 Sets up health monitoring
 
@@ -323,21 +327,38 @@ make setup-test-db migrate-test
 ```
 .
 ├── cmd/server/              # Application entry point
-│   └── main.go
+│   └── main.go             # Gin-based server with GORM
 ├── internal/                # Private application code
-│   ├── config/             # Configuration management
-│   ├── handlers/           # HTTP request handlers
-│   ├── models/             # Data structures and DTOs
-│   └── repository/         # Database operations
+│   ├── config/             # Configuration and database setup
+│   │   ├── config.go       # Application configuration
+│   │   └── database.go     # GORM database connection
+│   ├── handlers/           # Gin HTTP request handlers
+│   │   └── handlers.go     # API request handlers
+│   ├── models/             # Domain models organized by context
+│   │   ├── account/        # Account domain models
+│   │   └── transaction/    # Transaction domain models
+│   ├── repository/         # GORM database operations
+│   │   └── repository.go   # Database layer with transactions
+│   ├── responses/          # Standardized JSON responses
+│   │   └── responses.go    # Response helper functions
+│   └── validators/         # Input validation logic
+│       ├── account_validator.go
+│       ├── transaction_validator.go
+│       └── errors.go
+├── db/liquibase/           # Liquibase database migrations
+│   ├── liquibase.properties
+│   ├── changelog-master.xml
+│   └── changelogs/        # Migration changesets
 ├── tests/                  # Comprehensive test suite
 │   ├── unit/              # Unit tests
 │   ├── integration/       # Integration tests
 │   ├── fixtures/          # Test data
 │   └── testutils/         # Test utilities
-├── migrations/             # Database schema migrations
+├── examples/              # API usage examples
+├── docs/                  # API documentation
 ├── scripts/               # Build and deployment scripts
 ├── .github/workflows/     # CI/CD pipelines
-├── docker-compose.yml     # Docker development setup
+├── docker-compose.yml     # Docker with Liquibase setup
 ├── Dockerfile            # Container build instructions
 ├── Makefile             # Development automation
 ├── TESTING.md           # Comprehensive testing documentation

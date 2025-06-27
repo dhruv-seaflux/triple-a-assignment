@@ -1,242 +1,170 @@
 package handlers
 
 import (
-	"encoding/json"
-	"errors"
-	"internal-transfers/internal/models"
-	"internal-transfers/internal/repository"
-	"log"
 	"net/http"
 	"strconv"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
+
+	"internal-transfers/internal/models/account"
+	"internal-transfers/internal/models/transaction"
+	"internal-transfers/internal/repository"
+	"internal-transfers/internal/responses"
+	"internal-transfers/internal/validators"
 )
 
+// Handler handles HTTP requests using Gin framework
 type Handler struct {
-	repo *repository.Repository
+	repo              *repository.Repository
+	accountValidator  *validators.AccountValidator
+	transactionValidator *validators.TransactionValidator
 }
 
+// NewHandler creates a new Handler instance
 func NewHandler(repo *repository.Repository) *Handler {
-	return &Handler{repo: repo}
+	return &Handler{
+		repo:                 repo,
+		accountValidator:     validators.NewAccountValidator(),
+		transactionValidator: validators.NewTransactionValidator(),
+	}
 }
 
-// CreateAccount handles POST /accounts endpoint
-// Accepts JSON with account_id (int) and initial_balance (string)
-// Returns empty response on success or error on failure
-func (h *Handler) CreateAccount(w http.ResponseWriter, r *http.Request) {
-	var req models.AccountCreationRequest
+// CreateAccountHandler handles POST /accounts
+func (h *Handler) CreateAccountHandler(c *gin.Context) {
+	var req account.CreateAccountRequest
 	
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("Invalid JSON payload: %v", err)
-		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+	// Bind JSON request
+	if err := c.ShouldBindJSON(&req); err != nil {
+		responses.SendError(c, http.StatusBadRequest, "Invalid request format")
 		return
 	}
-
-	// Validate account_id
-	if req.AccountID <= 0 {
-		log.Printf("Invalid account_id: %d", req.AccountID)
-		http.Error(w, "account_id must be a positive integer", http.StatusBadRequest)
+	
+	// Validate account ID
+	if err := h.accountValidator.ValidateAccountID(req.AccountID); err != nil {
+		if validators.IsValidationError(err) {
+			responses.SendError(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		responses.SendError(c, http.StatusInternalServerError, "Validation error")
 		return
 	}
-
-	// Validate initial_balance
-	if req.InitialBalance == "" {
-		log.Printf("Empty initial_balance provided")
-		http.Error(w, "initial_balance is required", http.StatusBadRequest)
+	
+	// Validate initial balance
+	if err := h.accountValidator.ValidateInitialBalance(req.InitialBalance); err != nil {
+		if validators.IsValidationError(err) {
+			responses.SendError(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		responses.SendError(c, http.StatusInternalServerError, "Validation error")
 		return
 	}
-
+	
+	// Convert initial balance to decimal
 	initialBalance, err := decimal.NewFromString(req.InitialBalance)
 	if err != nil {
-		log.Printf("Invalid initial_balance format: %s, error: %v", req.InitialBalance, err)
-		http.Error(w, "initial_balance must be a valid decimal number", http.StatusBadRequest)
+		responses.SendError(c, http.StatusBadRequest, "Invalid initial balance format")
 		return
 	}
-
-	// Create account in repository
-	_, err = h.repo.CreateAccount(req.AccountID, initialBalance)
-	if err != nil {
-		if errors.Is(err, repository.ErrAccountAlreadyExists) {
-			log.Printf("Account already exists: %d", req.AccountID)
-			http.Error(w, "account already exists", http.StatusConflict)
-			return
-		}
-		if errors.Is(err, repository.ErrInvalidAmount) {
-			log.Printf("Invalid amount: %s", req.InitialBalance)
-			http.Error(w, "initial_balance cannot be negative", http.StatusBadRequest)
-			return
-		}
-		
-		log.Printf("Failed to create account: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	// Return empty response with 201 status on success
-	w.WriteHeader(http.StatusCreated)
-}
-
-func (h *Handler) GetAccountBalance(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	accountIDStr := vars["accountID"]
-
-	if accountIDStr == "" {
-		log.Printf("Missing account_id in URL path")
-		http.Error(w, "account_id is required", http.StatusBadRequest)
-		return
-	}
-
-	accountID, err := strconv.Atoi(accountIDStr)
-	if err != nil || accountID <= 0 {
-		log.Printf("Invalid account_id: %s", accountIDStr)
-		http.Error(w, "account_id must be a positive integer", http.StatusBadRequest)
-		return
-	}
-
-	account, err := h.repo.GetAccountByID(accountID)
-	if err != nil {
-		if errors.Is(err, repository.ErrAccountNotFound) {
-			log.Printf("Account not found: %d", accountID)
-			http.Error(w, "account not found", http.StatusNotFound)
-			return
-		}
-		
-		log.Printf("Failed to get account: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	// Create response in the exact format specified
-	response := models.AccountQueryResponse{
-		AccountID: account.AccountID,
-		Balance:   account.Balance.String(),
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Failed to encode response: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-}
-
-// SubmitTransaction handles POST /transactions endpoint
-// Accepts JSON with source_account_id, destination_account_id, and amount
-// Processes the transaction and updates account balances atomically
-func (h *Handler) SubmitTransaction(w http.ResponseWriter, r *http.Request) {
-	var req models.TransactionRequest
 	
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("Invalid JSON payload: %v", err)
-		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+	// Create account
+	err = h.repo.CreateAccount(req.AccountID, initialBalance)
+	if err != nil {
+		if err.Error() == "account already exists" {
+			responses.SendError(c, http.StatusConflict, "account already exists")
+			return
+		}
+		responses.SendError(c, http.StatusInternalServerError, "Failed to create account")
 		return
 	}
+	
+	responses.SendSuccess(c, http.StatusCreated, "Account created successfully")
+}
 
-	// Validate source_account_id
-	if req.SourceAccountID <= 0 {
-		log.Printf("Invalid source_account_id: %d", req.SourceAccountID)
-		http.Error(w, "source_account_id must be a positive integer", http.StatusBadRequest)
+// GetAccountBalanceHandler handles GET /accounts/{account_id}
+func (h *Handler) GetAccountBalanceHandler(c *gin.Context) {
+	// Get account ID from path parameter
+	accountIDStr := c.Param("account_id")
+	accountID, err := strconv.Atoi(accountIDStr)
+	if err != nil {
+		responses.SendError(c, http.StatusBadRequest, "Invalid account ID format")
 		return
 	}
-
-	// Validate destination_account_id
-	if req.DestinationAccountID <= 0 {
-		log.Printf("Invalid destination_account_id: %d", req.DestinationAccountID)
-		http.Error(w, "destination_account_id must be a positive integer", http.StatusBadRequest)
+	
+	// Validate account ID
+	if err := h.accountValidator.ValidateAccountID(accountID); err != nil {
+		if validators.IsValidationError(err) {
+			responses.SendError(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		responses.SendError(c, http.StatusInternalServerError, "Validation error")
 		return
 	}
-
-	// Validate that source and destination are different
-	if req.SourceAccountID == req.DestinationAccountID {
-		log.Printf("Source and destination accounts are the same: %d", req.SourceAccountID)
-		http.Error(w, "source and destination accounts cannot be the same", http.StatusBadRequest)
+	
+	// Get account
+	acc, err := h.repo.GetAccountByID(accountID)
+	if err != nil {
+		if err.Error() == "account not found" {
+			responses.SendError(c, http.StatusNotFound, "account not found")
+			return
+		}
+		responses.SendError(c, http.StatusInternalServerError, "Failed to retrieve account")
 		return
 	}
+	
+	responses.SendAccountResponse(c, acc.AccountID, acc.Balance.String())
+}
 
-	// Validate amount
-	if req.Amount == "" {
-		log.Printf("Empty amount provided")
-		http.Error(w, "amount is required", http.StatusBadRequest)
+// SubmitTransactionHandler handles POST /submit
+func (h *Handler) SubmitTransactionHandler(c *gin.Context) {
+	var req transaction.SubmitTransactionRequest
+	
+	// Bind JSON request
+	if err := c.ShouldBindJSON(&req); err != nil {
+		responses.SendError(c, http.StatusBadRequest, "Invalid request format")
 		return
 	}
-
+	
+	// Validate transaction request
+	err := h.transactionValidator.ValidateTransactionRequest(
+		req.SourceAccountID,
+		req.DestinationAccountID,
+		req.Amount,
+	)
+	if err != nil {
+		if validators.IsValidationError(err) {
+			responses.SendError(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		responses.SendError(c, http.StatusInternalServerError, "Validation error")
+		return
+	}
+	
+	// Convert amount to decimal
 	amount, err := decimal.NewFromString(req.Amount)
 	if err != nil {
-		log.Printf("Invalid amount format: %s, error: %v", req.Amount, err)
-		http.Error(w, "amount must be a valid decimal number", http.StatusBadRequest)
+		responses.SendError(c, http.StatusBadRequest, "Invalid amount format")
 		return
 	}
-
-	if amount.IsNegative() || amount.IsZero() {
-		log.Printf("Invalid amount value: %s", req.Amount)
-		http.Error(w, "amount must be positive", http.StatusBadRequest)
-		return
-	}
-
-	// Process the transaction
-	transaction, err := h.repo.ProcessTransaction(req.SourceAccountID, req.DestinationAccountID, amount)
+	
+	// Process transaction with GORM database transaction
+	trans, err := h.repo.ProcessTransaction(req.SourceAccountID, req.DestinationAccountID, amount)
 	if err != nil {
-		if errors.Is(err, repository.ErrAccountNotFound) {
-			log.Printf("Account not found during transaction: %v", err)
-			http.Error(w, "one or both accounts not found", http.StatusNotFound)
-			return
+		switch err.Error() {
+		case "source account not found", "destination account not found", "one or both accounts not found":
+			responses.SendError(c, http.StatusNotFound, err.Error())
+		case "insufficient balance":
+			responses.SendError(c, http.StatusBadRequest, "insufficient balance")
+		default:
+			responses.SendError(c, http.StatusInternalServerError, "Failed to process transaction")
 		}
-		if errors.Is(err, repository.ErrInsufficientBalance) {
-			log.Printf("Insufficient balance for transaction: %v", err)
-			http.Error(w, "insufficient balance", http.StatusBadRequest)
-			return
-		}
-		if errors.Is(err, repository.ErrInvalidAmount) {
-			log.Printf("Invalid amount for transaction: %v", err)
-			http.Error(w, "invalid amount", http.StatusBadRequest)
-			return
-		}
-		
-		log.Printf("Failed to process transaction: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-
-	// Create response
-	response := models.TransactionResponse{
-		TransactionID: transaction.ID,
-		Status:        transaction.Status,
-		Message:       "Transaction processed successfully",
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Failed to encode response: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
+	
+	responses.SendTransactionResponse(c, http.StatusCreated, int(trans.ID), trans.Status, "Transaction processed successfully")
 }
 
-func (h *Handler) CreateTransfer(w http.ResponseWriter, r *http.Request) {
-	var req models.TransferRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("Invalid JSON payload: %v", err)
-		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
-		return
-	}
-
-	if req.Amount <= 0 {
-		log.Printf("Invalid amount: %f", req.Amount)
-		http.Error(w, "Amount must be positive", http.StatusBadRequest)
-		return
-	}
-
-	if req.FromAccountNumber == "" || req.ToAccountNumber == "" {
-		log.Printf("Missing account numbers: from=%s, to=%s", req.FromAccountNumber, req.ToAccountNumber)
-		http.Error(w, "Both account numbers are required", http.StatusBadRequest)
-		return
-	}
-
-	// Note: This still uses the old account number system and needs to be updated
-	// when transfer functionality is implemented to use account IDs
-	
-	w.Header().Set("Content-Type", "application/json")
-	http.Error(w, "Transfer functionality not yet implemented with new account system", http.StatusNotImplemented)
+// HealthCheckHandler handles GET /health
+func (h *Handler) HealthCheckHandler(c *gin.Context) {
+	c.String(http.StatusOK, "OK")
 }

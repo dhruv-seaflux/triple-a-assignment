@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="003-add-indexes" author="internal-transfers">
+        <comment>Add performance indexes for frequent queries</comment>
+        
+        <!-- Index on account_id for fast account lookups -->
+        <createIndex indexName="idx_accounts_account_id" tableName="accounts">
+            <column name="account_id"/>
+        </createIndex>
+
+        <!-- Index on deleted_at for soft delete queries -->
+        <createIndex indexName="idx_accounts_deleted_at" tableName="accounts">
+            <column name="deleted_at"/>
+        </createIndex>
+
+        <!-- Index on from_account_id for transaction queries -->
+        <createIndex indexName="idx_transactions_from_account_id" tableName="transactions">
+            <column name="from_account_id"/>
+        </createIndex>
+
+        <!-- Index on to_account_id for transaction queries -->
+        <createIndex indexName="idx_transactions_to_account_id" tableName="transactions">
+            <column name="to_account_id"/>
+        </createIndex>
+
+        <!-- Index on status for filtering transactions -->
+        <createIndex indexName="idx_transactions_status" tableName="transactions">
+            <column name="status"/>
+        </createIndex>
+
+        <!-- Index on created_at for time-based queries -->
+        <createIndex indexName="idx_transactions_created_at" tableName="transactions">
+            <column name="created_at"/>
+        </createIndex>
+
+        <!-- Index on deleted_at for soft delete queries -->
+        <createIndex indexName="idx_transactions_deleted_at" tableName="transactions">
+            <column name="deleted_at"/>
+        </createIndex>
+
+        <!-- Composite index for account balance updates (performance critical) -->
+        <createIndex indexName="idx_accounts_account_id_deleted_at" tableName="accounts">
+            <column name="account_id"/>
+            <column name="deleted_at"/>
+        </createIndex>
+
+        <rollback>
+            <dropIndex indexName="idx_accounts_account_id" tableName="accounts"/>
+            <dropIndex indexName="idx_accounts_deleted_at" tableName="accounts"/>
+            <dropIndex indexName="idx_transactions_from_account_id" tableName="transactions"/>
+            <dropIndex indexName="idx_transactions_to_account_id" tableName="transactions"/>
+            <dropIndex indexName="idx_transactions_status" tableName="transactions"/>
+            <dropIndex indexName="idx_transactions_created_at" tableName="transactions"/>
+            <dropIndex indexName="idx_transactions_deleted_at" tableName="transactions"/>
+            <dropIndex indexName="idx_accounts_account_id_deleted_at" tableName="accounts"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
