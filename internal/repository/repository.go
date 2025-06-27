@@ -92,7 +92,10 @@ func (r *Repository) ProcessTransaction(sourceAccountID, destinationAccountID in
 		result := tx.Set("gorm:query_option", "FOR UPDATE NOWAIT").Where("account_id = ?", firstAccountID).First(&firstAcc)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("account %d not found", firstAccountID)
+				if firstAccountID == sourceAccountID {
+					return fmt.Errorf("source account %d not found", firstAccountID)
+				}
+				return fmt.Errorf("destination account %d not found", firstAccountID)
 			}
 			return fmt.Errorf("failed to lock account %d: %w", firstAccountID, result.Error)
 		}
@@ -102,7 +105,10 @@ func (r *Repository) ProcessTransaction(sourceAccountID, destinationAccountID in
 		result = tx.Set("gorm:query_option", "FOR UPDATE NOWAIT").Where("account_id = ?", secondAccountID).First(&secondAcc)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("account %d not found", secondAccountID)
+				if secondAccountID == sourceAccountID {
+					return fmt.Errorf("source account %d not found", secondAccountID)
+				}
+				return fmt.Errorf("destination account %d not found", secondAccountID)
 			}
 			return fmt.Errorf("failed to lock account %d: %w", secondAccountID, result.Error)
 		}
@@ -124,8 +130,8 @@ func (r *Repository) ProcessTransaction(sourceAccountID, destinationAccountID in
 		
 		// Step 3: Check sufficient balance with precision
 		if sourceAccount.Balance.LessThan(amount) {
-			return fmt.Errorf("insufficient balance: available %.5f, requested %.5f", 
-				sourceAccount.Balance, amount)
+			return fmt.Errorf("insufficient balance: available %s, requested %s", 
+				sourceAccount.Balance.String(), amount.String())
 		}
 		
 		// Step 4: Calculate new balances with high precision

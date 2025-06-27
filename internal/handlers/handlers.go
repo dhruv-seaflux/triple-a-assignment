@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -150,11 +151,20 @@ func (h *Handler) SubmitTransactionHandler(c *gin.Context) {
 	// Process transaction with GORM database transaction
 	trans, err := h.repo.ProcessTransaction(req.SourceAccountID, req.DestinationAccountID, amount)
 	if err != nil {
-		switch err.Error() {
-		case "source account not found", "destination account not found", "one or both accounts not found":
-			responses.SendError(c, http.StatusNotFound, err.Error())
-		case "insufficient balance":
-			responses.SendError(c, http.StatusBadRequest, "insufficient balance")
+		errorMsg := err.Error()
+		switch {
+		case contains(errorMsg, "account") && contains(errorMsg, "not found"):
+			responses.SendError(c, http.StatusNotFound, "One or both accounts not found")
+		case contains(errorMsg, "insufficient balance"):
+			responses.SendError(c, http.StatusBadRequest, "Insufficient funds: "+errorMsg)
+		case contains(errorMsg, "inactive"):
+			responses.SendError(c, http.StatusBadRequest, "Account is inactive")
+		case contains(errorMsg, "same"):
+			responses.SendError(c, http.StatusBadRequest, "Source and destination accounts cannot be the same")
+		case contains(errorMsg, "negative balance"):
+			responses.SendError(c, http.StatusBadRequest, "Transaction would result in negative balance")
+		case contains(errorMsg, "positive"):
+			responses.SendError(c, http.StatusBadRequest, "Transfer amount must be positive")
 		default:
 			responses.SendError(c, http.StatusInternalServerError, "Failed to process transaction")
 		}
@@ -167,4 +177,9 @@ func (h *Handler) SubmitTransactionHandler(c *gin.Context) {
 // HealthCheckHandler handles GET /health
 func (h *Handler) HealthCheckHandler(c *gin.Context) {
 	c.String(http.StatusOK, "OK")
+}
+
+// contains checks if a string contains a substring (case-insensitive)
+func contains(str, substr string) bool {
+	return strings.Contains(strings.ToLower(str), strings.ToLower(substr))
 }
