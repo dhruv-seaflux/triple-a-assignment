@@ -1,0 +1,8 @@
+pleasse user GIN for web server
+Add liquibase for database migration
+Pelease us route, method and handler function in the rounter  
+implement database level transaction (Commit and rollback functionality for the Submit transaction API)
+Create separate Validators
+Separate Model files according to context
+Please add GORM instead of Using RAW SQL query
+The response should always be in json with status code where if success than {message : <message>} and if error then {error : <error_message>} similar to res.status(200).json in js

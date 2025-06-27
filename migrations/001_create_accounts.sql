@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS accounts (
+    id SERIAL PRIMARY KEY,
+    account_id INTEGER UNIQUE NOT NULL,
+    balance DECIMAL(15,5) NOT NULL DEFAULT 0.00000,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_accounts_account_id ON accounts(account_id);

@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Internal Transfers API Documentation</title>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css" />
+    <style>
+        html {
+            box-sizing: border-box;
+            overflow: -moz-scrollbars-vertical;
+            overflow-y: scroll;
+        }
+        *, *:before, *:after {
+            box-sizing: inherit;
+        }
+        body {
+            margin: 0;
+            background: #fafafa;
+        }
+        .swagger-ui .topbar {
+            background-color: #2c3e50;
+        }
+        .swagger-ui .topbar .download-url-wrapper .select-label {
+            color: #ffffff;
+        }
+        .custom-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 0;
+        }
+        .custom-header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .custom-header p {
+            margin: 10px 0 0 0;
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            margin-bottom: 0;
+        }
+        .feature-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #667eea;
+        }
+        .feature-card h3 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 1.2em;
+        }
+        .feature-card p {
+            margin: 0;
+            color: #666;
+            line-height: 1.5;
+        }
+        .quick-start {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            margin-bottom: 0;
+        }
+        .quick-start h2 {
+            margin: 0 0 15px 0;
+            color: #ecf0f1;
+        }
+        .quick-start-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        .quick-start-item {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 6px;
+        }
+        .quick-start-item h4 {
+            margin: 0 0 10px 0;
+            color: #3498db;
+        }
+        .quick-start-item code {
+            background: rgba(0,0,0,0.2);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        #swagger-ui {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        }
+        .info-section {
+            background: white;
+            padding: 30px;
+            margin: 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .info-section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+        .business-rules {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .rule-category {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        .rule-category h4 {
+            margin: 0 0 15px 0;
+            color: #495057;
+            font-size: 1.1em;
+        }
+        .rule-category ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .rule-category li {
+            margin-bottom: 8px;
+            color: #6c757d;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="custom-header">
+        <h1>Internal Transfers API</h1>
+        <p>Robust HTTP API for internal financial transfers with PostgreSQL backend</p>
+    </div>
+
+    <div class="features-grid">
+        <div class="feature-card">
+            <h3>🏦 Account Management</h3>
+            <p>Create accounts with initial balances using integer account IDs. Supports high-precision decimal amounts with up to 5 decimal places.</p>
+        </div>
+        <div class="feature-card">
+            <h3>💰 Balance Queries</h3>
+            <p>Query account balances with precise decimal formatting. All monetary values returned as strings to preserve precision.</p>
+        </div>
+        <div class="feature-card">
+            <h3>🔄 Financial Transactions</h3>
+            <p>Process transfers between accounts with atomic operations. All transactions either succeed completely or fail completely.</p>
+        </div>
+        <div class="feature-card">
+            <h3>📊 Transaction Logging</h3>
+            <p>Complete audit trail with transaction history. Every transfer creates a permanent record for compliance and tracking.</p>
+        </div>
+        <div class="feature-card">
+            <h3>🔒 Data Integrity</h3>
+            <p>Atomic transactions with automatic rollback on failure. Database-level consistency guarantees for all operations.</p>
+        </div>
+        <div class="feature-card">
+            <h3>🎯 Decimal Precision</h3>
+            <p>High-precision financial calculations using DECIMAL(15,5) format. No floating-point precision loss for monetary operations.</p>
+        </div>
+    </div>
+
+    <div class="info-section">
+        <h2>Business Rules & Validation</h2>
+        <div class="business-rules">
+            <div class="rule-category">
+                <h4>Account Management</h4>
+                <ul>
+                    <li>Account IDs must be positive integers</li>
+                    <li>Account IDs must be unique across the system</li>
+                    <li>Initial account balances cannot be negative</li>
+                    <li>Accounts cannot be deleted once created</li>
+                </ul>
+            </div>
+            <div class="rule-category">
+                <h4>Transaction Processing</h4>
+                <ul>
+                    <li>Transaction amounts must be positive</li>
+                    <li>Source and destination accounts must be different</li>
+                    <li>Source account must have sufficient balance</li>
+                    <li>All operations are atomic (succeed completely or fail)</li>
+                </ul>
+            </div>
+            <div class="rule-category">
+                <h4>Data Precision</h4>
+                <ul>
+                    <li>All amounts use decimal arithmetic (no floating-point)</li>
+                    <li>Supports up to 5 decimal places</li>
+                    <li>Input/output as strings to preserve precision</li>
+                    <li>Database stores DECIMAL(15,5) format</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="quick-start">
+        <h2>Quick Start Examples</h2>
+        <div class="quick-start-grid">
+            <div class="quick-start-item">
+                <h4>1. Create Account</h4>
+                <p>Create a new account with initial balance:</p>
+                <code>POST /accounts</code>
+                <p style="margin-top: 10px; font-size: 0.9em;">
+                    {"account_id": 123, "initial_balance": "1000.50"}
+                </p>
+            </div>
+            <div class="quick-start-item">
+                <h4>2. Check Balance</h4>
+                <p>Query current account balance:</p>
+                <code>GET /accounts/123</code>
+                <p style="margin-top: 10px; font-size: 0.9em;">
+                    Returns: {"account_id": 123, "balance": "1000.50"}
+                </p>
+            </div>
+            <div class="quick-start-item">
+                <h4>3. Transfer Money</h4>
+                <p>Process a financial transfer:</p>
+                <code>POST /transactions</code>
+                <p style="margin-top: 10px; font-size: 0.9em;">
+                    {"source_account_id": 123, "destination_account_id": 456, "amount": "150.50"}
+                </p>
+            </div>
+            <div class="quick-start-item">
+                <h4>4. Health Check</h4>
+                <p>Verify service status:</p>
+                <code>GET /health</code>
+                <p style="margin-top: 10px; font-size: 0.9em;">
+                    Returns: "OK" (200 status)
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div id="swagger-ui"></div>
+
+    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-standalone-preset.js"></script>
+    <script>
+        const spec = {
+            "openapi": "3.0.3",
+            "info": {
+                "title": "Internal Transfers API",
+                "description": "A robust HTTP API for internal financial transfers between accounts with PostgreSQL backend.\n\n## Features\n- **Account Management**: Create accounts with initial balances using integer account IDs\n- **Balance Queries**: Query account balances with precise decimal formatting\n- **Financial Transactions**: Process transfers between accounts with atomic operations\n- **Transaction Logging**: Complete audit trail with transaction history\n- **Data Integrity**: Atomic transactions with automatic rollback on failure\n- **Decimal Precision**: High-precision financial calculations (15 digits, 5 decimal places)\n\n## Business Rules\n- Account IDs must be positive integers and unique across the system\n- Initial account balances cannot be negative\n- Transaction amounts must be positive\n- Source and destination accounts must be different for transfers\n- All transactions are atomic - they either succeed completely or fail completely\n- Insufficient balance transfers are rejected\n\n## Data Precision\nAll monetary amounts use high-precision decimal arithmetic with up to 5 decimal places to ensure accurate financial calculations without floating-point precision loss.",
+                "version": "1.0.0",
+                "contact": {
+                    "name": "Internal Transfers API Support",
+                    "email": "support@example.com"
+                },
+                "license": {
+                    "name": "MIT",
+                    "url": "https://opensource.org/licenses/MIT"
+                }
+            },
+            "servers": [
+                {
+                    "url": "http://localhost:8080",
+                    "description": "Development server"
+                },
+                {
+                    "url": "https://api.internal-transfers.example.com",
+                    "description": "Production server"
+                }
+            ],
+            "tags": [
+                {
+                    "name": "accounts",
+                    "description": "Account management operations"
+                },
+                {
+                    "name": "transactions",
+                    "description": "Financial transaction operations"
+                },
+                {
+                    "name": "health",
+                    "description": "System health and monitoring"
+                }
+            ],
+            "paths": {
+                "/accounts": {
+                    "post": {
+                        "tags": ["accounts"],
+                        "summary": "Create a new account",
+                        "description": "Creates a new account with the specified account ID and initial balance.\n\n**Business Rules:**\n- Account ID must be a positive integer\n- Account ID must be unique across the system\n- Initial balance must be a valid decimal number\n- Initial balance cannot be negative\n\n**Success Response:**\nReturns HTTP 201 with an empty response body when the account is created successfully.",
+                        "operationId": "createAccount",
+                        "requestBody": {
+                            "required": true,
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/AccountCreationRequest"
+                                    },
+                                    "examples": {
+                                        "standard_account": {
+                                            "summary": "Standard account creation",
+                                            "value": {
+                                                "account_id": 123,
+                                                "initial_balance": "1000.50"
+                                            }
+                                        },
+                                        "zero_balance": {
+                                            "summary": "Account with zero balance",
+                                            "value": {
+                                                "account_id": 456,
+                                                "initial_balance": "0.00"
+                                            }
+                                        },
+                                        "high_precision": {
+                                            "summary": "High precision balance",
+                                            "value": {
+                                                "account_id": 789,
+                                                "initial_balance": "999.99999"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "responses": {
+                            "201": {
+                                "description": "Account created successfully",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "type": "object",
+                                            "properties": {}
+                                        }
+                                    }
+                                }
+                            },
+                            "400": {
+                                "description": "Invalid request data",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "$ref": "#/components/schemas/ErrorResponse"
+                                        },
+                                        "examples": {
+                                            "invalid_account_id": {
+                                                "summary": "Invalid account ID",
+                                                "value": {
+                                                    "error": "account_id must be a positive integer"
+                                                }
+                                            },
+                                            "invalid_balance_format": {
+                                                "summary": "Invalid balance format",
+                                                "value": {
+                                                    "error": "initial_balance must be a valid decimal number"
+                                                }
+                                            },
+                                            "negative_balance": {
+                                                "summary": "Negative balance",
+                                                "value": {
+                                                    "error": "initial_balance cannot be negative"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "409": {
+                                "description": "Account already exists",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "$ref": "#/components/schemas/ErrorResponse"
+                                        },
+                                        "example": {
+                                            "error": "account already exists"
+                                        }
+                                    }
+                                }
+                            },
+                            "500": {
+                                "description": "Internal server error",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "$ref": "#/components/schemas/ErrorResponse"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "/accounts/{account_id}": {
+                    "get": {
+                        "tags": ["accounts"],
+                        "summary": "Get account balance",
+                        "description": "Retrieves the current balance and information for the specified account.\n\n**Response Format:**\nReturns the account ID and current balance as a decimal string to preserve precision.",
+                        "operationId": "getAccountBalance",
+                        "parameters": [
+                            {
+                                "name": "account_id",
+                                "in": "path",
+                                "required": true,
+                                "description": "The unique account identifier",
+                                "schema": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "example": 123
+                                }
+                            }
+                        ],
+                        "responses": {
+                            "200": {
+                                "description": "Account found and balance returned",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "$ref": "#/components/schemas/AccountQueryResponse"
+                                        },
+                                        "examples": {
+                                            "standard_balance": {
+                                                "summary": "Account with standard balance",
+                                                "value": {
+                                                    "account_id": 123,
+                                                    "balance": "1000.50"
+                                                }
+                                            },
+                                            "zero_balance": {
+                                                "summary": "Account with zero balance",
+                                                "value": {
+                                                    "account_id": 456,
+                                                    "balance": "0"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "400": {
+                                "description": "Invalid account ID format",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "$ref": "#/components/schemas/ErrorResponse"
+                                        }
+                                    }
+                                }
+                            },
+                            "404": {
+                                "description": "Account not found",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "$ref": "#/components/schemas/ErrorResponse"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "/transactions": {
+                    "post": {
+                        "tags": ["transactions"],
+                        "summary": "Submit a financial transaction",
+                        "description": "Processes a financial transfer between two accounts atomically.\n\n**Business Rules:**\n- Source and destination accounts must exist\n- Source and destination accounts must be different\n- Transaction amount must be positive\n- Source account must have sufficient balance\n- All operations are atomic (succeed completely or fail completely)",
+                        "operationId": "submitTransaction",
+                        "requestBody": {
+                            "required": true,
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/TransactionRequest"
+                                    },
+                                    "examples": {
+                                        "standard_transfer": {
+                                            "summary": "Standard transfer",
+                                            "value": {
+                                                "source_account_id": 123,
+                                                "destination_account_id": 456,
+                                                "amount": "150.50"
+                                            }
+                                        },
+                                        "high_precision_transfer": {
+                                            "summary": "High precision transfer",
+                                            "value": {
+                                                "source_account_id": 123,
+                                                "destination_account_id": 456,
+                                                "amount": "999.99999"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "responses": {
+                            "201": {
+                                "description": "Transaction processed successfully",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "$ref": "#/components/schemas/TransactionResponse"
+                                        }
+                                    }
+                                }
+                            },
+                            "400": {
+                                "description": "Invalid request or business rule violation",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "$ref": "#/components/schemas/ErrorResponse"
+                                        },
+                                        "examples": {
+                                            "insufficient_balance": {
+                                                "summary": "Insufficient balance",
+                                                "value": {
+                                                    "error": "insufficient balance"
+                                                }
+                                            },
+                                            "same_account": {
+                                                "summary": "Same source and destination",
+                                                "value": {
+                                                    "error": "source and destination accounts cannot be the same"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "404": {
+                                "description": "One or both accounts not found",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "$ref": "#/components/schemas/ErrorResponse"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "/health": {
+                    "get": {
+                        "tags": ["health"],
+                        "summary": "Health check endpoint",
+                        "description": "Returns the health status of the API service.",
+                        "operationId": "healthCheck",
+                        "responses": {
+                            "200": {
+                                "description": "Service is healthy and operational",
+                                "content": {
+                                    "text/plain": {
+                                        "schema": {
+                                            "type": "string",
+                                            "example": "OK"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "components": {
+                "schemas": {
+                    "AccountCreationRequest": {
+                        "type": "object",
+                        "required": ["account_id", "initial_balance"],
+                        "properties": {
+                            "account_id": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "description": "Unique account identifier (positive integer)",
+                                "example": 123
+                            },
+                            "initial_balance": {
+                                "type": "string",
+                                "pattern": "^[0-9]+(\\.[0-9]{1,5})?$",
+                                "description": "Initial account balance as a decimal string. Supports up to 5 decimal places for precision. Must be non-negative.",
+                                "example": "1000.50000"
+                            }
+                        }
+                    },
+                    "AccountQueryResponse": {
+                        "type": "object",
+                        "required": ["account_id", "balance"],
+                        "properties": {
+                            "account_id": {
+                                "type": "integer",
+                                "description": "The account identifier",
+                                "example": 123
+                            },
+                            "balance": {
+                                "type": "string",
+                                "description": "Current account balance as a decimal string. Preserves precision up to 5 decimal places.",
+                                "example": "1000.50000"
+                            }
+                        }
+                    },
+                    "TransactionRequest": {
+                        "type": "object",
+                        "required": ["source_account_id", "destination_account_id", "amount"],
+                        "properties": {
+                            "source_account_id": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "description": "Account ID to transfer money from",
+                                "example": 123
+                            },
+                            "destination_account_id": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "description": "Account ID to transfer money to",
+                                "example": 456
+                            },
+                            "amount": {
+                                "type": "string",
+                                "pattern": "^[0-9]*\\.?[0-9]+$",
+                                "description": "Transfer amount as a decimal string. Must be positive and supports up to 5 decimal places.",
+                                "example": "150.50000"
+                            }
+                        }
+                    },
+                    "TransactionResponse": {
+                        "type": "object",
+                        "required": ["transaction_id", "status", "message"],
+                        "properties": {
+                            "transaction_id": {
+                                "type": "integer",
+                                "description": "Unique identifier for the completed transaction",
+                                "example": 42
+                            },
+                            "status": {
+                                "type": "string",
+                                "enum": ["completed", "failed"],
+                                "description": "Transaction processing status",
+                                "example": "completed"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Human-readable transaction result message",
+                                "example": "Transaction processed successfully"
+                            }
+                        }
+                    },
+                    "ErrorResponse": {
+                        "type": "object",
+                        "required": ["error"],
+                        "properties": {
+                            "error": {
+                                "type": "string",
+                                "description": "Human-readable error message describing what went wrong",
+                                "example": "account not found"
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        window.onload = function() {
+            SwaggerUIBundle({
+                url: undefined,
+                spec: spec,
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout",
+                validatorUrl: null,
+                tryItOutEnabled: true,
+                supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
+                onComplete: function() {
+                    console.log("Swagger UI loaded successfully");
+                },
+                onFailure: function(data) {
+                    console.log("Failed to load Swagger UI", data);
+                }
+            });
+        };
+    </script>
+</body>
+</html>

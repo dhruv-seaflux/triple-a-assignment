@@ -1,0 +1,812 @@
+{
+	"info": {
+		"_postman_id": "12345678-1234-1234-1234-123456789abc",
+		"name": "Internal Transfers API",
+		"description": "Complete API collection for Internal Transfers Application\n\n## Features\n- Account creation with initial balances\n- Account balance queries\n- Financial transactions between accounts\n- Health monitoring\n- Error handling examples\n\n## Setup\n1. Import this collection into Postman\n2. Set the `base_url` environment variable to your API server (default: http://localhost:8080)\n3. Run the requests in order for a complete workflow\n\n## Business Rules\n- Account IDs must be positive integers\n- Initial balances cannot be negative\n- Transaction amounts must be positive\n- Source and destination accounts must be different\n- All operations are atomic (succeed completely or fail)\n\nFor detailed documentation, see the API specification.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Account Management",
+			"item": [
+				{
+					"name": "Create Account - Standard",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response body is empty\", function () {",
+									"    pm.expect(pm.response.text()).to.be.empty;",
+									"});",
+									"",
+									"pm.test(\"Response time is less than 200ms\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": 1001,\n  \"initial_balance\": \"1000.50\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/accounts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts"
+							]
+						},
+						"description": "Creates a new account with ID 1001 and initial balance of $1000.50.\n\nThis is the standard account creation example showing:\n- Positive account ID\n- Valid decimal balance\n- Expected 201 Created response"
+					}
+				},
+				{
+					"name": "Create Account - Zero Balance",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response body is empty\", function () {",
+									"    pm.expect(pm.response.text()).to.be.empty;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": 1002,\n  \"initial_balance\": \"0.00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/accounts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts"
+							]
+						},
+						"description": "Creates an account with zero initial balance.\n\nDemonstrates that zero balance is acceptable for account creation."
+					}
+				},
+				{
+					"name": "Create Account - High Precision",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": 1003,\n  \"initial_balance\": \"999.99999\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/accounts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts"
+							]
+						},
+						"description": "Creates an account with high-precision balance (5 decimal places).\n\nShows the system's support for precise financial calculations."
+					}
+				},
+				{
+					"name": "Query Account Balance - Existing",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response contains account_id and balance\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('account_id');",
+									"    pm.expect(jsonData).to.have.property('balance');",
+									"});",
+									"",
+									"pm.test(\"Account ID matches request\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.account_id).to.eql(1001);",
+									"});",
+									"",
+									"pm.test(\"Balance is a string\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.balance).to.be.a('string');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/accounts/1001",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts",
+								"1001"
+							]
+						},
+						"description": "Queries the balance for account 1001.\n\nExpected response:\n```json\n{\n  \"account_id\": 1001,\n  \"balance\": \"1000.50\"\n}\n```\n\nNote: Balance is returned as a string to preserve decimal precision."
+					}
+				},
+				{
+					"name": "Query Account Balance - High Precision",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Balance preserves precision\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.balance).to.include('.');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/accounts/1003",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts",
+								"1003"
+							]
+						},
+						"description": "Queries account with high-precision balance to verify decimal preservation."
+					}
+				}
+			],
+			"description": "Account management operations including creation and balance queries.",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							""
+						]
+					}
+				}
+			]
+		},
+		{
+			"name": "Transaction Processing",
+			"item": [
+				{
+					"name": "Submit Transaction - Standard",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response contains transaction details\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('transaction_id');",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});",
+									"",
+									"pm.test(\"Transaction status is completed\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql('completed');",
+									"});",
+									"",
+									"pm.test(\"Transaction ID is a positive integer\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.transaction_id).to.be.a('number');",
+									"    pm.expect(jsonData.transaction_id).to.be.above(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"source_account_id\": 1001,\n  \"destination_account_id\": 1002,\n  \"amount\": \"150.50\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/transactions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"transactions"
+							]
+						},
+						"description": "Processes a standard financial transfer of $150.50 from account 1001 to account 1002.\n\nThis demonstrates:\n- Valid account IDs\n- Positive transfer amount\n- Atomic transaction processing\n- Successful response format\n\nAfter this transaction:\n- Account 1001 balance: $849.50 (1000.50 - 150.50)\n- Account 1002 balance: $150.50 (0.00 + 150.50)"
+					}
+				},
+				{
+					"name": "Submit Transaction - High Precision",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Transaction processed successfully\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql('completed');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"source_account_id\": 1003,\n  \"destination_account_id\": 1002,\n  \"amount\": \"25.12345\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/transactions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"transactions"
+							]
+						},
+						"description": "Transfers a high-precision amount (5 decimal places) to verify the system handles precise calculations correctly."
+					}
+				},
+				{
+					"name": "Verify Balances After Transactions",
+					"item": [
+						{
+							"name": "Check Account 1001 Balance",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status code is 200 OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});",
+											"",
+											"pm.test(\"Balance reflects transaction deduction\", function () {",
+											"    const jsonData = pm.response.json();",
+											"    // Should be 849.50 after transferring 150.50",
+											"    pm.expect(parseFloat(jsonData.balance)).to.be.below(1000);",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/accounts/1001",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"accounts",
+										"1001"
+									]
+								},
+								"description": "Verifies that account 1001 balance was correctly reduced after the transfer."
+							}
+						},
+						{
+							"name": "Check Account 1002 Balance",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status code is 200 OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});",
+											"",
+											"pm.test(\"Balance reflects transaction addition\", function () {",
+											"    const jsonData = pm.response.json();",
+											"    // Should be greater than 150 after receiving transfers",
+											"    pm.expect(parseFloat(jsonData.balance)).to.be.above(150);",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/accounts/1002",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"accounts",
+										"1002"
+									]
+								},
+								"description": "Verifies that account 1002 balance was correctly increased after receiving transfers."
+							}
+						}
+					]
+				}
+			],
+			"description": "Financial transaction processing and verification."
+		},
+		{
+			"name": "Error Scenarios",
+			"item": [
+				{
+					"name": "Create Account - Invalid ID (Negative)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error message indicates invalid account ID\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.include('account_id');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": -1,\n  \"initial_balance\": \"1000.00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/accounts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts"
+							]
+						},
+						"description": "Attempts to create an account with negative ID to test validation.\n\nExpected: 400 Bad Request with error message about positive integers."
+					}
+				},
+				{
+					"name": "Create Account - Negative Balance",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error message indicates negative balance\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.include('negative');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": 9001,\n  \"initial_balance\": \"-100.00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/accounts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts"
+							]
+						},
+						"description": "Attempts to create an account with negative balance to test validation."
+					}
+				},
+				{
+					"name": "Create Account - Duplicate ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 409 Conflict\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"Error message indicates account exists\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.include('exists');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account_id\": 1001,\n  \"initial_balance\": \"500.00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/accounts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts"
+							]
+						},
+						"description": "Attempts to create an account with existing ID (1001) to test duplicate detection.\n\nExpected: 409 Conflict with error about account already existing."
+					}
+				},
+				{
+					"name": "Query Non-existent Account",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Error message indicates account not found\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.include('not found');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/accounts/99999",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"accounts",
+								"99999"
+							]
+						},
+						"description": "Queries a non-existent account to test error handling.\n\nExpected: 404 Not Found with appropriate error message."
+					}
+				},
+				{
+					"name": "Transaction - Insufficient Balance",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error message indicates insufficient balance\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.include('insufficient');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"source_account_id\": 1002,\n  \"destination_account_id\": 1001,\n  \"amount\": \"99999.00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/transactions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"transactions"
+							]
+						},
+						"description": "Attempts to transfer more money than available in the source account.\n\nExpected: 400 Bad Request with insufficient balance error."
+					}
+				},
+				{
+					"name": "Transaction - Same Account",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error message indicates same account issue\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.include('same');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"source_account_id\": 1001,\n  \"destination_account_id\": 1001,\n  \"amount\": \"100.00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/transactions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"transactions"
+							]
+						},
+						"description": "Attempts to transfer money from an account to itself.\n\nExpected: 400 Bad Request with error about same accounts."
+					}
+				},
+				{
+					"name": "Transaction - Negative Amount",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error message indicates positive amount required\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.include('positive');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"source_account_id\": 1001,\n  \"destination_account_id\": 1002,\n  \"amount\": \"-50.00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/transactions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"transactions"
+							]
+						},
+						"description": "Attempts to transfer a negative amount.\n\nExpected: 400 Bad Request with error about positive amounts."
+					}
+				}
+			],
+			"description": "Error scenarios to test input validation and business rule enforcement."
+		},
+		{
+			"name": "System Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response is 'OK'\", function () {",
+									"    pm.expect(pm.response.text()).to.eql('OK');",
+									"});",
+									"",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Checks the health status of the API service.\n\nUseful for:\n- Monitoring service availability\n- Load balancer health checks\n- Automated service verification\n\nExpected: 200 OK with \"OK\" response body."
+					}
+				}
+			],
+			"description": "System health and monitoring endpoints."
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string",
+			"description": "Base URL for the Internal Transfers API"
+		}
+	]
+}

@@ -1,0 +1,478 @@
+openapi: 3.0.3
+info:
+  title: Internal Transfers API
+  description: |
+    A robust HTTP API for internal financial transfers between accounts with PostgreSQL backend.
+    
+    ## Features
+    - **Account Management**: Create accounts with initial balances using integer account IDs
+    - **Balance Queries**: Query account balances with precise decimal formatting
+    - **Financial Transactions**: Process transfers between accounts with atomic operations
+    - **Transaction Logging**: Complete audit trail with transaction history
+    - **Data Integrity**: Atomic transactions with automatic rollback on failure
+    - **Decimal Precision**: High-precision financial calculations (15 digits, 5 decimal places)
+    
+    ## Business Rules
+    - Account IDs must be positive integers and unique across the system
+    - Initial account balances cannot be negative
+    - Transaction amounts must be positive
+    - Source and destination accounts must be different for transfers
+    - All transactions are atomic - they either succeed completely or fail completely
+    - Insufficient balance transfers are rejected
+    
+    ## Data Precision
+    All monetary amounts use high-precision decimal arithmetic with up to 5 decimal places
+    to ensure accurate financial calculations without floating-point precision loss.
+    
+  version: 1.0.0
+  contact:
+    name: Internal Transfers API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+  - url: https://api.internal-transfers.example.com
+    description: Production server
+
+tags:
+  - name: accounts
+    description: Account management operations
+  - name: transactions
+    description: Financial transaction operations
+  - name: health
+    description: System health and monitoring
+
+paths:
+  /accounts:
+    post:
+      tags:
+        - accounts
+      summary: Create a new account
+      description: |
+        Creates a new account with the specified account ID and initial balance.
+        
+        **Business Rules:**
+        - Account ID must be a positive integer
+        - Account ID must be unique across the system
+        - Initial balance must be a valid decimal number
+        - Initial balance cannot be negative
+        
+        **Success Response:**
+        Returns HTTP 201 with an empty response body when the account is created successfully.
+      operationId: createAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountCreationRequest'
+            examples:
+              standard_account:
+                summary: Standard account creation
+                value:
+                  account_id: 123
+                  initial_balance: "1000.50"
+              zero_balance:
+                summary: Account with zero balance
+                value:
+                  account_id: 456
+                  initial_balance: "0.00"
+              high_precision:
+                summary: High precision balance
+                value:
+                  account_id: 789
+                  initial_balance: "999.99999"
+      responses:
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {}
+              example: {}
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_account_id:
+                  summary: Invalid account ID
+                  value:
+                    error: "account_id must be a positive integer"
+                invalid_balance_format:
+                  summary: Invalid balance format
+                  value:
+                    error: "initial_balance must be a valid decimal number"
+                negative_balance:
+                  summary: Negative balance
+                  value:
+                    error: "initial_balance cannot be negative"
+                missing_field:
+                  summary: Missing required field
+                  value:
+                    error: "initial_balance is required"
+        '409':
+          description: Account already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "account already exists"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "internal server error"
+
+  /accounts/{account_id}:
+    get:
+      tags:
+        - accounts
+      summary: Get account balance
+      description: |
+        Retrieves the current balance and information for the specified account.
+        
+        **Response Format:**
+        Returns the account ID and current balance as a decimal string to preserve precision.
+      operationId: getAccountBalance
+      parameters:
+        - name: account_id
+          in: path
+          required: true
+          description: The unique account identifier
+          schema:
+            type: integer
+            minimum: 1
+            example: 123
+      responses:
+        '200':
+          description: Account found and balance returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountQueryResponse'
+              examples:
+                standard_balance:
+                  summary: Account with standard balance
+                  value:
+                    account_id: 123
+                    balance: "1000.50"
+                zero_balance:
+                  summary: Account with zero balance
+                  value:
+                    account_id: 456
+                    balance: "0"
+                high_precision:
+                  summary: High precision balance
+                  value:
+                    account_id: 789
+                    balance: "12345.67890"
+        '400':
+          description: Invalid account ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "account_id must be a positive integer"
+        '404':
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "account not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "internal server error"
+
+  /transactions:
+    post:
+      tags:
+        - transactions
+      summary: Submit a financial transaction
+      description: |
+        Processes a financial transfer between two accounts atomically.
+        
+        **Business Rules:**
+        - Source and destination accounts must exist
+        - Source and destination accounts must be different
+        - Transaction amount must be positive
+        - Source account must have sufficient balance
+        - All operations are atomic (succeed completely or fail completely)
+        
+        **Transaction Process:**
+        1. Validates input parameters
+        2. Checks that both accounts exist
+        3. Verifies sufficient balance in source account
+        4. Updates both account balances atomically
+        5. Creates transaction audit record
+        6. Returns transaction confirmation
+        
+        If any step fails, all changes are rolled back automatically.
+      operationId: submitTransaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionRequest'
+            examples:
+              standard_transfer:
+                summary: Standard transfer
+                value:
+                  source_account_id: 123
+                  destination_account_id: 456
+                  amount: "150.50"
+              high_precision_transfer:
+                summary: High precision transfer
+                value:
+                  source_account_id: 123
+                  destination_account_id: 456
+                  amount: "999.99999"
+              small_amount:
+                summary: Small amount transfer
+                value:
+                  source_account_id: 123
+                  destination_account_id: 456
+                  amount: "0.01"
+      responses:
+        '201':
+          description: Transaction processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+              example:
+                transaction_id: 42
+                status: "completed"
+                message: "Transaction processed successfully"
+        '400':
+          description: Invalid request or business rule violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                insufficient_balance:
+                  summary: Insufficient balance
+                  value:
+                    error: "insufficient balance"
+                same_account:
+                  summary: Same source and destination
+                  value:
+                    error: "source and destination accounts cannot be the same"
+                invalid_amount:
+                  summary: Invalid amount
+                  value:
+                    error: "amount must be positive"
+                invalid_account_id:
+                  summary: Invalid account ID
+                  value:
+                    error: "source_account_id must be a positive integer"
+                missing_amount:
+                  summary: Missing amount
+                  value:
+                    error: "amount is required"
+        '404':
+          description: One or both accounts not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "one or both accounts not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "internal server error"
+
+  /health:
+    get:
+      tags:
+        - health
+      summary: Health check endpoint
+      description: |
+        Returns the health status of the API service. This endpoint can be used
+        for monitoring, load balancer health checks, and automated service verification.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy and operational
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "OK"
+        '500':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "service unavailable"
+
+components:
+  schemas:
+    AccountCreationRequest:
+      type: object
+      required:
+        - account_id
+        - initial_balance
+      properties:
+        account_id:
+          type: integer
+          minimum: 1
+          description: Unique account identifier (positive integer)
+          example: 123
+        initial_balance:
+          type: string
+          pattern: '^[0-9]+(\.[0-9]{1,5})?$'
+          description: |
+            Initial account balance as a decimal string.
+            Supports up to 5 decimal places for precision.
+            Must be non-negative.
+          example: "1000.50000"
+      example:
+        account_id: 123
+        initial_balance: "1000.50"
+
+    AccountQueryResponse:
+      type: object
+      required:
+        - account_id
+        - balance
+      properties:
+        account_id:
+          type: integer
+          description: The account identifier
+          example: 123
+        balance:
+          type: string
+          description: |
+            Current account balance as a decimal string.
+            Preserves precision up to 5 decimal places.
+          example: "1000.50000"
+      example:
+        account_id: 123
+        balance: "1000.50"
+
+    TransactionRequest:
+      type: object
+      required:
+        - source_account_id
+        - destination_account_id
+        - amount
+      properties:
+        source_account_id:
+          type: integer
+          minimum: 1
+          description: Account ID to transfer money from
+          example: 123
+        destination_account_id:
+          type: integer
+          minimum: 1
+          description: Account ID to transfer money to
+          example: 456
+        amount:
+          type: string
+          pattern: '^[0-9]*\.?[0-9]+$'
+          description: |
+            Transfer amount as a decimal string.
+            Must be positive and supports up to 5 decimal places.
+          example: "150.50000"
+      example:
+        source_account_id: 123
+        destination_account_id: 456
+        amount: "150.50"
+
+    TransactionResponse:
+      type: object
+      required:
+        - transaction_id
+        - status
+        - message
+      properties:
+        transaction_id:
+          type: integer
+          description: Unique identifier for the completed transaction
+          example: 42
+        status:
+          type: string
+          enum: [completed, failed]
+          description: Transaction processing status
+          example: "completed"
+        message:
+          type: string
+          description: Human-readable transaction result message
+          example: "Transaction processed successfully"
+      example:
+        transaction_id: 42
+        status: "completed"
+        message: "Transaction processed successfully"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error message describing what went wrong
+          example: "account not found"
+      example:
+        error: "account not found"
+
+  examples:
+    CreateAccountSuccess:
+      summary: Successful account creation
+      description: Example of creating an account with initial balance
+      value:
+        account_id: 123
+        initial_balance: "1000.50"
+
+    TransactionSuccess:
+      summary: Successful transaction
+      description: Example of a successful money transfer
+      value:
+        source_account_id: 123
+        destination_account_id: 456
+        amount: "150.50"
+
+    AccountBalance:
+      summary: Account balance response
+      description: Example response when querying account balance
+      value:
+        account_id: 123
+        balance: "849.50"
+
+x-readme:
+  samples-languages:
+    - curl
+    - javascript
+    - python
+    - go
+
+security: []

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go mod:*)",
+      "Bash(docker-compose:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(mkdir:*)"
+    ],
+    "deny": []
+  }
+}
